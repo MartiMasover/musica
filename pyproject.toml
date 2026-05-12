@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "musica"
+version = "0.1.0"
+description = "Eina d'escriptori per ordenar pistes d'àudio i editar-ne metadades en massa."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "mutagen>=1.47",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8"]
+
+[project.scripts]
+musica = "musica.app:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
