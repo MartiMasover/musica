@@ -18,7 +18,7 @@ Musica és una aplicació d'escriptori senzilla per preparar recopilatoris d'àl
 - Neteja massiva de fragments repetits als títols. Per exemple, si les pistes venen com `Maneras de Vivir_JPdownloader`, pots indicar `JPdownloader` i el títol quedarà com `Maneras de Vivir`.
 - Escriptura de metadades amb [`mutagen`](https://mutagen.readthedocs.io/), compatible amb formats habituals com MP3, FLAC, M4A/ALAC, OGG/Opus, WAV, WMA i AIFF quan el contenidor admet etiquetes.
 
-## Instal·lació per desenvolupar o provar amb Python
+## Instal·lació
 
 Cal Python 3.10 o superior.
 
@@ -26,7 +26,7 @@ Cal Python 3.10 o superior.
 python -m pip install -e .
 ```
 
-## Ús amb Python
+## Ús
 
 ```bash
 musica
@@ -38,40 +38,7 @@ També pots executar-la directament així:
 python -m musica.app
 ```
 
-## Crear un executable per Windows
-
-Per no haver d'instal·lar Python a cada ordinador on vulguis fer servir Musica, genera un executable amb PyInstaller des d'un ordinador Windows que sí tingui Python instal·lat.
-
-### Opció ràpida
-
-Des de PowerShell o `cmd`, dins la carpeta del projecte:
-
-```bat
-scripts\build_windows.bat
-```
-
-Quan acabi, trobaràs l'aplicació aquí:
-
-```text
-dist\Musica\Musica.exe
-```
-
-Pots copiar tota la carpeta `dist\Musica` a un altre ordinador Windows i executar `Musica.exe` sense instal·lar Python.
-
-### Opció manual
-
-Si prefereixes fer-ho pas a pas:
-
-```bash
-python -m pip install -e ".[build]"
-pyinstaller --noconfirm --clean --windowed --name Musica --collect-all mutagen src\musica\app.py
-```
-
-El mode recomanat és carpeta (`dist\Musica`) en comptes d'un sol `.exe`, perquè sol donar menys falsos positius d'antivirus i arrenca més ràpid.
-
-> Important: crea l'executable a Windows si el vols per Windows. Un executable generat a Linux o macOS no servirà directament com a `.exe` de Windows.
-
-## Flux recomanat
+Flux recomanat:
 
 1. Prem **Selecciona carpeta…** i tria la carpeta on tens les pistes.
 2. Revisa els títols i les metadades carregades.
