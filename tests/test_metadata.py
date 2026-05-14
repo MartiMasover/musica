@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from musica import metadata
 from musica.metadata import (
     BulkMetadata,
     Track,
@@ -10,6 +11,7 @@ from musica.metadata import (
     is_audio_file,
     move_track,
     renumber_tracks,
+    save_track,
     title_from_filename,
 )
 
@@ -79,3 +81,59 @@ def test_move_track_can_move_up() -> None:
     updated = move_track(tracks, 2, 0)
 
     assert [track.filename for track in updated] == ["c.mp3", "a.mp3", "b.mp3"]
+
+
+def test_save_track_falls_back_to_ffmpeg_for_webm_when_mutagen_cannot_read(
+    tmp_path: Path, monkeypatch
+) -> None:
+    source = tmp_path / "song.webm"
+    source.write_text("original", encoding="utf-8")
+    commands: list[list[str]] = []
+
+    monkeypatch.setattr(metadata, "MutagenFile", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(metadata.shutil, "which", lambda name: "/usr/bin/ffmpeg" if name == "ffmpeg" else None)
+
+    def fake_run(command, check, capture_output, text):
+        commands.append(command)
+        Path(command[-1]).write_text("remuxed", encoding="utf-8")
+        return metadata.subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(metadata.subprocess, "run", fake_run)
+
+    save_track(
+        Track(
+            source,
+            title="Title",
+            artist="Artist",
+            album="Album",
+            album_artist="Album Artist",
+            year="2026",
+            genre="Rock",
+            track_number="1/10",
+        )
+    )
+
+    assert source.read_text(encoding="utf-8") == "remuxed"
+    command = commands[0]
+    assert command[:8] == ["/usr/bin/ffmpeg", "-y", "-i", str(source), "-map", "0", "-c", "copy"]
+    assert "title=Title" in command
+    assert "artist=Artist" in command
+    assert "album=Album" in command
+    assert "album_artist=Album Artist" in command
+    assert "date=2026" in command
+    assert "track=1/10" in command
+
+
+def test_save_track_webm_explains_that_ffmpeg_is_required(tmp_path: Path, monkeypatch) -> None:
+    source = tmp_path / "song.webm"
+    source.write_text("original", encoding="utf-8")
+    monkeypatch.setattr(metadata, "MutagenFile", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(metadata.shutil, "which", lambda _name: None)
+
+    try:
+        save_track(Track(source, title="Title"))
+    except RuntimeError as exc:
+        assert "ffmpeg" in str(exc)
+        assert "WebM/Matroska" in str(exc)
+    else:
+        raise AssertionError("Expected ffmpeg requirement error")

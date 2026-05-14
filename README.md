@@ -72,6 +72,12 @@ El mode recomanat és carpeta (`dist\Musica`) en comptes d'un sol `.exe`, perqu�
 
 > Important: crea l'executable a Windows si el vols per Windows. Un executable generat a Linux o macOS no servirà directament com a `.exe` de Windows.
 
+## Nota sobre WebM/Matroska
+
+Els fitxers `.webm`, `.weba`, `.mka` i `.mkv` es detecten a la carpeta i es poden reordenar igual que la resta. Per desar metadades dins aquests contenidors, Musica fa servir `ffmpeg` com a alternativa quan `mutagen` no els pot escriure directament.
+
+Per tant, si treballes amb WebM i en prémer **Desa metadades** et surt un error relacionat amb `ffmpeg`, instal·la `ffmpeg` i assegura't que està disponible al `PATH` de Windows abans d'obrir Musica. Una altra opció és convertir aquests fitxers a MP3, FLAC o M4A abans d'editar-ne les metadades.
+
 ## Flux recomanat
 
 1. Prem **Selecciona carpeta…** i tria la carpeta on tens les pistes.

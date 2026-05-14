@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, fields, replace
 from pathlib import Path
 import re
+import shutil
+import subprocess
 from typing import Iterable
 
 try:
@@ -43,6 +45,8 @@ AUDIO_EXTENSIONS = {
     ".wv",
 }
 
+FFMPEG_METADATA_EXTENSIONS = {".mka", ".mkv", ".weba", ".webm"}
+
 COMMON_AUDIO_KEYS = {
     "title": "title",
     "artist": "artist",
@@ -51,6 +55,16 @@ COMMON_AUDIO_KEYS = {
     "year": "date",
     "genre": "genre",
     "track_number": "tracknumber",
+}
+
+FFMPEG_METADATA_KEYS = {
+    "title": "title",
+    "artist": "artist",
+    "album": "album",
+    "album_artist": "album_artist",
+    "year": "date",
+    "genre": "genre",
+    "track_number": "track",
 }
 
 
@@ -143,18 +157,10 @@ def load_track(path: Path) -> Track:
     )
 
 
-def save_track(track: Track) -> None:
-    """Write the current metadata to an audio file."""
+def editable_values(track: Track) -> dict[str, str]:
+    """Return the editable fields in a format shared by all tag writers."""
 
-    if MutagenFile is None:
-        raise RuntimeError("Instal·la la dependència 'mutagen' per desar metadades d'àudio.")
-    audio = MutagenFile(track.path, easy=True)
-    if audio is None:
-        raise ValueError(f"No es pot llegir el fitxer d'àudio: {track.path}")
-    if audio.tags is None:
-        audio.add_tags()
-
-    values = {
+    return {
         "title": track.title,
         "artist": track.artist,
         "album": track.album,
@@ -163,13 +169,94 @@ def save_track(track: Track) -> None:
         "genre": track.genre,
         "track_number": track.track_number,
     }
+
+
+def is_ffmpeg_metadata_file(path: Path) -> bool:
+    """Return whether a file should fall back to ffmpeg for tag writing."""
+
+    return path.suffix.lower() in FFMPEG_METADATA_EXTENSIONS
+
+
+def temporary_output_path(path: Path) -> Path:
+    """Return a non-existing temporary output path next to the original file."""
+
+    for index in range(1000):
+        suffix = "" if index == 0 else f"-{index}"
+        candidate = path.with_name(f".{path.stem}.musica-tmp{suffix}{path.suffix}")
+        if not candidate.exists():
+            return candidate
+    raise RuntimeError(f"No s'ha pogut crear un nom temporal per a: {path}")
+
+
+def save_track_with_ffmpeg(track: Track) -> None:
+    """Write metadata by remuxing WebM/Matroska files with ffmpeg."""
+
+    ffmpeg = shutil.which("ffmpeg")
+    if ffmpeg is None:
+        raise RuntimeError(
+            "Per desar metadades en fitxers WebM/Matroska cal tenir ffmpeg instal·lat "
+            "i disponible al PATH. Instal·la ffmpeg o converteix el fitxer a MP3/FLAC/M4A."
+        )
+
+    output_path = temporary_output_path(track.path)
+    command = [
+        ffmpeg,
+        "-y",
+        "-i",
+        str(track.path),
+        "-map",
+        "0",
+        "-c",
+        "copy",
+    ]
+    values = editable_values(track)
+    for field_name, metadata_key in FFMPEG_METADATA_KEYS.items():
+        command.extend(["-metadata", f"{metadata_key}={values[field_name].strip()}"])
+    command.append(str(output_path))
+
+    try:
+        subprocess.run(command, check=True, capture_output=True, text=True)
+        output_path.replace(track.path)
+    except subprocess.CalledProcessError as exc:
+        output_path.unlink(missing_ok=True)
+        details = (exc.stderr or exc.stdout or str(exc)).strip()
+        raise RuntimeError(f"ffmpeg no ha pogut desar les metadades de {track.path}: {details}") from exc
+    except Exception:
+        output_path.unlink(missing_ok=True)
+        raise
+
+
+def save_track(track: Track) -> None:
+    """Write the current metadata to an audio file."""
+
+    if MutagenFile is None:
+        if is_ffmpeg_metadata_file(track.path):
+            save_track_with_ffmpeg(track)
+            return
+        raise RuntimeError("Instal·la la dependència 'mutagen' per desar metadades d'àudio.")
+    audio = MutagenFile(track.path, easy=True)
+    if audio is None:
+        if is_ffmpeg_metadata_file(track.path):
+            save_track_with_ffmpeg(track)
+            return
+        raise ValueError(f"No es pot llegir el fitxer d'àudio: {track.path}")
+    if audio.tags is None:
+        audio.add_tags()
+
+    values = editable_values(track)
     for field_name, tag_key in COMMON_AUDIO_KEYS.items():
         value = values[field_name].strip()
         if value:
             audio.tags[tag_key] = [value]
         elif tag_key in audio.tags:
             del audio.tags[tag_key]
-    audio.save()
+    try:
+        audio.save()
+    except Exception:
+        if is_ffmpeg_metadata_file(track.path):
+            save_track_with_ffmpeg(track)
+            return
+        raise
 
 
 def clean_repeated_fragment(title: str, fragment: str, case_sensitive: bool = False) -> str:
