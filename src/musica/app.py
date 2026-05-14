@@ -14,6 +14,7 @@ from .metadata import (
     apply_fragment_cleanup,
     discover_audio_files,
     load_track,
+    move_track,
     renumber_tracks,
     save_track,
 )
@@ -53,6 +54,7 @@ class MusicaApp(tk.Tk):
         }
         self.tracks: list[Track] = []
         self.selected_index: int | None = None
+        self.drag_source_index: int | None = None
 
         self._build_ui()
 
@@ -107,10 +109,24 @@ class MusicaApp(tk.Tk):
             self.tree.column(column, width=widths[column], anchor=tk.W)
         self.tree.grid(row=0, column=0, sticky="nsew")
         self.tree.bind("<<TreeviewSelect>>", self.on_select)
+        self.tree.bind("<ButtonPress-1>", self.on_drag_start)
+        self.tree.bind("<ButtonRelease-1>", self.on_drag_release)
 
         scrollbar = ttk.Scrollbar(left, orient=tk.VERTICAL, command=self.tree.yview)
         scrollbar.grid(row=0, column=1, sticky="ns")
         self.tree.configure(yscrollcommand=scrollbar.set)
+
+        reorder = ttk.Frame(left, padding=(0, 8, 0, 0))
+        reorder.grid(row=1, column=0, columnspan=2, sticky="ew")
+        ttk.Label(reorder, text="Reordena arrossegant una pista amb el ratolí o usa els botons:").grid(
+            row=0, column=0, sticky="w"
+        )
+        ttk.Button(reorder, text="Puja", command=lambda: self.move_selected(-1)).grid(
+            row=0, column=1, padx=(8, 0)
+        )
+        ttk.Button(reorder, text="Baixa", command=lambda: self.move_selected(1)).grid(
+            row=0, column=2, padx=(4, 0)
+        )
 
         right = ttk.Notebook(main)
         main.add(right, weight=1)
@@ -265,6 +281,50 @@ class MusicaApp(tk.Tk):
         track = self.tracks[self.selected_index]
         for field, variable in self.edit_vars.items():
             variable.set(getattr(track, field))
+
+    def on_drag_start(self, event: tk.Event) -> None:
+        row_id = self.tree.identify_row(event.y)
+        self.drag_source_index = int(row_id) if row_id else None
+
+    def on_drag_release(self, event: tk.Event) -> None:
+        if self.drag_source_index is None:
+            return
+        target_id = self.tree.identify_row(event.y)
+        source_index = self.drag_source_index
+        self.drag_source_index = None
+        if not target_id:
+            return
+        target_index = int(target_id)
+        if source_index == target_index:
+            return
+        self.tracks = move_track(self.tracks, source_index, target_index)
+        self.selected_index = target_index
+        self.refresh_table()
+        self.tree.selection_set(str(target_index))
+        self.tree.focus(str(target_index))
+        self.status.set(
+            "Ordre actualitzat. Prem 'Numera segons l'ordre actual' si vols regenerar els números de pista."
+        )
+
+    def move_selected(self, direction: int) -> None:
+        if not self.require_tracks():
+            return
+        selected = self.tree.selection()
+        if not selected:
+            messagebox.showinfo("Cap selecció", "Selecciona una pista de la taula.")
+            return
+        source_index = int(selected[0])
+        target_index = source_index + direction
+        if target_index < 0 or target_index >= len(self.tracks):
+            return
+        self.tracks = move_track(self.tracks, source_index, target_index)
+        self.selected_index = target_index
+        self.refresh_table()
+        self.tree.selection_set(str(target_index))
+        self.tree.focus(str(target_index))
+        self.status.set(
+            "Ordre actualitzat. Prem 'Numera segons l'ordre actual' si vols regenerar els números de pista."
+        )
 
     def require_tracks(self) -> bool:
         if self.tracks:

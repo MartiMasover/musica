@@ -6,6 +6,9 @@ from musica.metadata import (
     apply_bulk_metadata,
     apply_fragment_cleanup,
     clean_repeated_fragment,
+    discover_audio_files,
+    is_audio_file,
+    move_track,
     renumber_tracks,
     title_from_filename,
 )
@@ -46,3 +49,33 @@ def test_apply_fragment_cleanup_returns_updated_track_titles() -> None:
     updated = apply_fragment_cleanup(tracks, "JPdownloader")
 
     assert updated[0].title == "A"
+
+
+def test_webm_and_other_modern_audio_extensions_are_detected(tmp_path: Path) -> None:
+    webm = tmp_path / "clip.webm"
+    weba = tmp_path / "audio.weba"
+    mka = tmp_path / "album.mka"
+    txt = tmp_path / "notes.txt"
+    for path in (webm, weba, mka, txt):
+        path.write_text("", encoding="utf-8")
+
+    assert is_audio_file(webm)
+    assert is_audio_file(weba)
+    assert is_audio_file(mka)
+    assert discover_audio_files(tmp_path) == [mka, weba, webm]
+
+
+def test_move_track_reorders_to_target_position() -> None:
+    tracks = [Track(Path("a.mp3")), Track(Path("b.mp3")), Track(Path("c.mp3"))]
+
+    updated = move_track(tracks, 0, 2)
+
+    assert [track.filename for track in updated] == ["b.mp3", "c.mp3", "a.mp3"]
+
+
+def test_move_track_can_move_up() -> None:
+    tracks = [Track(Path("a.mp3")), Track(Path("b.mp3")), Track(Path("c.mp3"))]
+
+    updated = move_track(tracks, 2, 0)
+
+    assert [track.filename for track in updated] == ["c.mp3", "a.mp3", "b.mp3"]

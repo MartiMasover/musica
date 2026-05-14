@@ -13,16 +13,34 @@ except ModuleNotFoundError:  # pragma: no cover - exercised only without optiona
     MutagenFile = None
 
 AUDIO_EXTENSIONS = {
+    ".3gp",
     ".aac",
+    ".aif",
     ".aiff",
     ".alac",
+    ".ape",
+    ".asf",
+    ".dff",
+    ".dsf",
     ".flac",
     ".m4a",
+    ".m4b",
+    ".m4p",
+    ".mka",
+    ".mkv",
+    ".mp2",
     ".mp3",
+    ".mp4",
+    ".oga",
     ".ogg",
     ".opus",
+    ".spx",
+    ".tta",
     ".wav",
+    ".weba",
+    ".webm",
     ".wma",
+    ".wv",
 }
 
 COMMON_AUDIO_KEYS = {
@@ -197,6 +215,28 @@ def apply_bulk_metadata(tracks: Iterable[Track], metadata: BulkMetadata) -> list
         if getattr(metadata, field.name).strip()
     }
     return [replace(track, **replacements) for track in tracks]
+
+
+def move_track(tracks: Iterable[Track], source_index: int, target_index: int) -> list[Track]:
+    """Return tracks with one item moved to a new visible position.
+
+    The target index is the final position the source track should occupy after
+    the move, matching the drag-and-drop behavior in the table.
+    """
+
+    track_list = list(tracks)
+    if not track_list:
+        return []
+    if source_index < 0 or source_index >= len(track_list):
+        raise IndexError("source_index fora de rang")
+    if target_index < 0 or target_index >= len(track_list):
+        raise IndexError("target_index fora de rang")
+    if source_index == target_index:
+        return track_list
+
+    track = track_list.pop(source_index)
+    track_list.insert(target_index, track)
+    return track_list
 
 
 def renumber_tracks(tracks: Iterable[Track], start: int = 1, total: bool = True) -> list[Track]:
